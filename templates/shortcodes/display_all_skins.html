@@ -1,0 +1,139 @@
+{#- Hardcoded list of skin folders - contributors add their folder name here -#}
+{%- set skin_folders = [
+] -%}
+
+{#- Loop through all skins and display them -#}
+{%- for folder in skin_folders -%}
+    {#- Generate skin name from folder (title case, replace hyphens with spaces) -#}
+    {%- set skin_name = folder | replace(from="-", to=" ") | title -%}
+
+    {#- Include the skin showcase shortcode logic inline -#}
+    {%- set skin_folder = folder -%}
+
+    {#- Try to find CSS or SCSS file from the skin folder -#}
+    {%- set_global css_content = "" -%}
+    {%- set_global css_extension = "" -%}
+    {%- for ext in ["css", "scss"] -%}
+        {%- set css_path = "static/skins/" ~ skin_folder ~ "/skin." ~ ext -%}
+        {%- set test_content = load_data(path=css_path, format="plain", required=false) -%}
+        {%- if test_content -%}
+            {%- set_global css_content = test_content -%}
+            {%- set_global css_extension = ext -%}
+            {%- break -%}
+        {%- endif -%}
+    {%- endfor -%}
+
+    <div class="skin-showcase">
+        <h2 class="skin-title">{{ skin_name }}</h2>
+
+        {#- Display about information if available -#}
+        {%- set about_path = "static/skins/" ~ skin_folder ~ "/about.md" -%}
+        {%- set about_content = load_data(path=about_path, format="plain", required=false) | default(value="") -%}
+        {%- if about_content -%}
+            <div class="skin-about">
+                {{ about_content | markdown | safe }}
+            </div>
+        {%- endif -%}
+
+        {#- Display screenshot(s) -#}
+        <div class="skin-screenshot">
+            {#- Check for separate light/dark screenshots first -#}
+            {%- set light_screenshot = "skins/" ~ skin_folder ~ "/screenshot-light" -%}
+            {%- set dark_screenshot = "skins/" ~ skin_folder ~ "/screenshot-dark" -%}
+
+            {#- Try to find light theme screenshot -#}
+            {%- set_global light_found = false -%}
+            {%- set_global light_path = "" -%}
+            {%- for ext in ["webp", "png", "jpg"] -%}
+                {%- set test_path = "static/" ~ light_screenshot ~ "." ~ ext -%}
+                {%- set test_meta = get_image_metadata(path=test_path, allow_missing=true) -%}
+                {%- if test_meta -%}
+                    {%- set_global light_found = true -%}
+                    {%- set_global light_path = light_screenshot ~ "." ~ ext -%}
+                    {%- break -%}
+                {%- endif -%}
+            {%- endfor -%}
+
+            {#- Try to find dark theme screenshot -#}
+            {%- set_global dark_found = false -%}
+            {%- set_global dark_path = "" -%}
+            {%- for ext in ["webp", "png", "jpg"] -%}
+                {%- set test_path = "static/" ~ dark_screenshot ~ "." ~ ext -%}
+                {%- set test_meta = get_image_metadata(path=test_path, allow_missing=true) -%}
+                {%- if test_meta -%}
+                    {%- set_global dark_found = true -%}
+                    {%- set_global dark_path = dark_screenshot ~ "." ~ ext -%}
+                    {%- break -%}
+                {%- endif -%}
+            {%- endfor -%}
+
+            {%- if light_found and dark_found -%}
+                {#- Both themes available - use tabi's pure HTML image toggler -#}
+                {%- set toggle_id = get_random(end=100000) -%}
+                {%- set default_image_url = get_url(path=light_path, cachebust=true) -%}
+                {%- set toggled_image_url = get_url(path=dark_path, cachebust=true) -%}
+                {%- set default_meta = get_image_metadata(path="static/" ~ light_path, allow_missing=true) -%}
+                {%- set toggled_meta = get_image_metadata(path="static/" ~ dark_path, allow_missing=true) -%}
+
+                <div class="image-toggler-container">
+                    <input type="checkbox" id="toggle-img-{{ toggle_id }}" class="image-toggler-toggle">
+                    <label for="toggle-img-{{ toggle_id }}" class="image-label">
+                        <div class="image-default">
+                            <img src="{{ default_image_url }}"
+                                 loading="lazy"
+                                 alt="{{ skin_name }} - Light theme"
+                                 {%- if default_meta and default_meta.width %} width="{{ default_meta.width }}"{% endif %}
+                                 {%- if default_meta and default_meta.height %} height="{{ default_meta.height }}"{% endif %}>
+                        </div>
+                        <div class="image-toggled">
+                            <img src="{{ toggled_image_url }}"
+                                 loading="lazy"
+                                 alt="{{ skin_name }} - Dark theme"
+                                 {%- if toggled_meta and toggled_meta.width %} width="{{ toggled_meta.width }}"{% endif %}
+                                 {%- if toggled_meta and toggled_meta.height %} height="{{ toggled_meta.height }}"{% endif %}>
+                        </div>
+                    </label>
+                </div>
+            {%- elif light_found -%}
+                {#- Only light theme -#}
+                <img src="/{{ light_path }}" alt="{{ skin_name }} - Light theme" loading="lazy" />
+            {%- elif dark_found -%}
+                {#- Only dark theme -#}
+                <img src="/{{ dark_path }}" alt="{{ skin_name }} - Dark theme" loading="lazy" />
+            {%- else -%}
+                {#- Fallback to single screenshot (backwards compatibility) -#}
+                {%- set_global fallback_found = false -%}
+                {%- for ext in ["webp", "png", "jpg"] -%}
+                    {%- set fallback_path = "static/skins/" ~ skin_folder ~ "/screenshot." ~ ext -%}
+                    {%- set fallback_meta = get_image_metadata(path=fallback_path, allow_missing=true) -%}
+                    {%- if fallback_meta -%}
+                        <img src="/skins/{{ skin_folder }}/screenshot.{{ ext }}" alt="{{ skin_name }} skin preview" loading="lazy" />
+                        {%- set_global fallback_found = true -%}
+                        {%- break -%}
+                    {%- endif -%}
+                {%- endfor -%}
+                {%- if not fallback_found -%}
+                    <div class="error">No screenshot found for {{ skin_name }}. Please add screenshot-light.webp and screenshot-dark.webp, or screenshot.webp</div>
+                {%- endif -%}
+            {%- endif -%}
+        </div>
+
+        {#- Display CSS code -#}
+        <div class="skin-css">
+            {%- if css_content -%}
+                <h3>CSS</h3>
+                <a href="data:text/css;charset=utf-8,{{ css_content | urlencode }}"
+                   download="{{ skin_folder }}.{{ css_extension }}"
+                   class="download-btn">
+                    Download {{ css_extension | upper }} file
+                </a>
+                {%- set markdown_code = "```{{ css_extension }}
+" ~ css_content ~ "
+```" -%}
+                {{ markdown_code | markdown | safe }}
+            {%- else -%}
+                <div class="error">No skin.css or skin.scss file found for {{ skin_name }}. Please add one of these files.</div>
+            {%- endif -%}
+        </div>
+    </div>
+{%- endfor -%}
